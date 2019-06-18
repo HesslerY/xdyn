@@ -3,8 +3,15 @@ PROJECT(x-dyn)
 SET(DESCRIPTION "X-DYN : Simulateur 6ddl de navires")
 SET(CMAKE_VERBOSE_MAKEFILE OFF)
 #############################################################################
-OPTION(BUILD_DOCUMENTATION "Boolean used to build xdyn documentation" ON)
 OPTION(THIRD_PARTY_DIRECTORY "Where should CMake look for (former submodules) eigen, eigen3-hdf5, etc... ?" ${CMAKE_CURRENT_SOURCE_DIR})
+OPTION(BUILD_DOCUMENTATION "Boolean used to build xdyn documentation" ON)
+OPTION(BUILD_GRPC_MODULE "Boolean used to build gRPC functionnalities" ON)
+IF(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/waves_grpc/waves.proto")
+    IF(BUILD_GRPC_MODULE)
+        MESSAGE(STATUS "gRPC module will be disabled since proto file is missing")
+    ENDIF()
+    SET(BUILD_GRPC_MODULE FALSE)
+ENDIF()
 #############################################################################
 # User configuration
 IF(NOT DEFINED CMAKE_BUILD_TYPE)
@@ -43,7 +50,9 @@ INCLUDE(CMakeYamlCpp)
 INCLUDE(CMakeEigen)
 INCLUDE(CMakeHdf5)
 INCLUDE(CMakeProtoBuf)
-INCLUDE(CMakeGRPC)
+IF(BUILD_GRPC_MODULE)
+    INCLUDE(CMakeGRPC)
+ENDIF()
 
 INCLUDE(CMakeBoost)
 SET(Boost_USE_STATIC_LIBS   ON)
@@ -72,7 +81,9 @@ ADD_SUBDIRECTORY(boost_program_options_descriptions)
 ADD_SUBDIRECTORY(hdb_interpolators)
 ADD_SUBDIRECTORY(core)
 ADD_SUBDIRECTORY(force_models)
+IF(BUILD_GRPC_MODULE)
 ADD_SUBDIRECTORY(grpc)
+ENDIF()
 ADD_SUBDIRECTORY(parser_extensions)
 ADD_SUBDIRECTORY(observers_and_api)
 ADD_SUBDIRECTORY(gz_curves)
@@ -97,9 +108,10 @@ ADD_LIBRARY(${PROJECT_NAME} ${STATICORSHARED}
         $<TARGET_OBJECTS:hdb_interpolators>
         $<TARGET_OBJECTS:interface_hdf5>
         $<TARGET_OBJECTS:gz_curves>
-        $<TARGET_OBJECTS:grpc>
         )
-
+IF(BUILD_GRPC_MODULE)
+    TARGET_SOURCES(${PROJECT_NAME} PUBLIC $<TARGET_OBJECTS:grpc>)
+ENDIF()
 IF (WIN32)
     TARGET_LINK_LIBRARIES(${PROJECT_NAME} PRIVATE ${ssc_STATIC_LIB})
 ELSE()
@@ -158,9 +170,14 @@ TARGET_LINK_LIBRARIES(${TEST_EXE}
         binary_stl_data_static
         ${Boost_FILESYSTEM_LIBRARY}
         ${PROJECT_NAME}
+        )
+
+IF(BUILD_GRPC_MODULE)
+    TARGET_LINK_LIBRARIES(${TEST_EXE}
         ${GRPC_GRPCPP_UNSECURE}
         ${PROTOBUF_LIBPROTOBUF}
         )
+ENDIF()
 
 MESSAGE(STATUS "CMAKE_BUILD_TYPE_UPPER : ${CMAKE_BUILD_TYPE_UPPER}")
 IF(CMAKE_BUILD_TYPE_UPPER MATCHES COVERAGE)
@@ -173,6 +190,6 @@ INCLUDE(CMakeTesting)
 IF(BUILD_DOCUMENTATION)
     MESSAGE(STATUS "Build documentation")
     INCLUDE(CMakeDocumentation)
-ENDIF()
+    ENDIF()
 INCLUDE(CMakeCustomTargets)
 INCLUDE(CMakePack)
